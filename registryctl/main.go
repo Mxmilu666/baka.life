@@ -25,7 +25,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: baka-registry <validate|review-check|diff|sync> [flags]")
+		return fmt.Errorf("usage: baka-registry <validate|review-check|body-check|diff|sync> [flags]")
 	}
 
 	switch args[0] {
@@ -33,6 +33,8 @@ func run(args []string) error {
 		return runValidate(args[1:])
 	case "review-check":
 		return runReviewCheck(args[1:])
+	case "body-check":
+		return runBodyCheck(args[1:])
 	case "diff":
 		return runDiff(args[1:])
 	case "sync":
@@ -103,6 +105,20 @@ func runReviewCheck(args []string) error {
 	for _, reason := range result.Reasons {
 		fmt.Println("review: " + reason)
 	}
+	return nil
+}
+
+func runBodyCheck(args []string) error {
+	fs := flag.NewFlagSet("body-check", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	body := fs.String("body", os.Getenv("GITHUB_PR_BODY"), "GitHub PR body")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := review.CheckAbuseAgreement(*body); err != nil {
+		return err
+	}
+	fmt.Println("PR abuse prevention agreement accepted")
 	return nil
 }
 
