@@ -66,6 +66,14 @@ jobs:
         working-directory: base/registryctl
         run: go test ./...
 
+      - name: Check PR abuse prevention agreement
+        id: body
+        continue-on-error: true
+        working-directory: base/registryctl
+        env:
+          GITHUB_PR_BODY: ${{ github.event.pull_request.body }}
+        run: go run . body-check
+
       - name: Check registry format and review requirement
         id: review
         continue-on-error: true
@@ -79,7 +87,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ steps.review.outcome }}" != "success" ]; then
+          if [ "${{ steps.body.outcome }}" != "success" ]; then
+            body="PR rejected: please complete all abuse prevention agreement checkboxes in the PR template."
+          elif [ "${{ steps.review.outcome }}" != "success" ]; then
             body="Registry format check failed. See the workflow logs for parser or validation errors."
           elif [ "${{ steps.review.outputs.requires_review }}" = "true" ]; then
             body="Registry format check passed. This PR requires maintainer review because it is an initial registration or includes non-auto-mergeable changes."
@@ -91,10 +101,14 @@ jobs:
           gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body "$body"
 
       - name: Enable auto-merge
-        if: steps.review.outcome == 'success' && steps.review.outputs.auto_merge == 'true'
+        if: steps.body.outcome == 'success' && steps.review.outcome == 'success' && steps.review.outputs.auto_merge == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh pr merge ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --auto --squash
+
+      - name: Fail on incomplete abuse prevention agreement
+        if: steps.body.outcome != 'success'
+        run: exit 1
 
       - name: Fail on registry errors
         if: steps.review.outcome != 'success'
